@@ -1,0 +1,12 @@
+[package]
+name        = "fs-gui-engine-iced"
+description = "FreeSynergy iced/libcosmic render engine — implements fs-render traits"
+version     = "0.1.0"
+edition     = "2021"
+license     = "MIT"
+authors     = ["FreeSynergy.Net"]
+repository  = "https://github.com/FreeSynergy/fs-gui-engine-iced"
+
+[dependencies]
+fs-render = { path = "../fs-render" }
+iced      = { version = "0.13", features = ["tokio"] }
