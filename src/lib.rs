@@ -11,12 +11,16 @@
 //   - `FsTheme`       — IcedTheme
 //
 // Application code imports `fs-render` only — never this crate directly.
-// This crate is selected via a Cargo feature flag in `fs-desktop`.
+// Engine selection happens via Cargo feature flags in fs-desktop / fs-browser.
 //
 // # libcosmic
 // The current build uses vanilla `iced 0.13`.  A full libcosmic integration
 // (Pop!_OS COSMIC design system, system palette, portal integration) will be
 // added once the desktop shell reaches the G2.8 phase.
+//
+// # Re-exported iced
+// `pub use iced` lets downstream crates (fs-browser, fs-desktop shell)
+// use iced widgets without adding `iced` to their own Cargo.toml.
 
 pub mod engine;
 pub mod theme;
@@ -27,6 +31,9 @@ pub use engine::IcedEngine;
 pub use theme::IcedTheme;
 pub use widget::IcedWidget;
 pub use window::IcedWindow;
+
+/// Re-export `iced` so downstream crates need not depend on it directly.
+pub use iced;
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 

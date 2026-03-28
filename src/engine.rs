@@ -43,6 +43,33 @@ impl Default for IcedEngine {
     }
 }
 
+impl IcedEngine {
+    /// Run an iced application using the given title, update, and view functions.
+    ///
+    /// This is a convenience wrapper around `iced::application` that lets
+    /// downstream crates launch a full iced event loop without depending on
+    /// `iced` directly.
+    ///
+    /// # Type parameters
+    /// - `S` — application state (must implement `Default`)
+    /// - `M` — message type
+    /// - `U` — update function `fn(&mut S, M) -> iced::Task<M>`
+    /// - `V` — view function `fn(&S) -> iced::Element<M>`
+    ///
+    /// # Errors
+    ///
+    /// Returns an `iced::Error` if the event loop fails to start.
+    pub fn run<S, M, U, V>(title: &'static str, update: U, view: V) -> iced::Result
+    where
+        S: Default + 'static,
+        M: Clone + std::fmt::Debug + Send + 'static,
+        U: Fn(&mut S, M) -> iced::Task<M> + 'static,
+        V: Fn(&S) -> iced::Element<'_, M> + 'static,
+    {
+        iced::application(title, update, view).run()
+    }
+}
+
 impl RenderEngine for IcedEngine {
     type Window = IcedWindow;
     type Widget = IcedWidget;
