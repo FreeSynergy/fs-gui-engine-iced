@@ -1,12 +1,14 @@
-use fs_render::{FsEvent, RenderEngine, WindowConfig};
+use std::sync::Mutex;
+
+use fs_render::{AppContext, FsEvent, RenderEngine, WindowConfig};
 
 use crate::{IcedTheme, IcedWidget, IcedWindow};
 
 /// iced render engine — implements [`fs_render::RenderEngine`] for `fs-render`.
 ///
 /// `IcedEngine` is the entry point for `FreeSynergy` applications that target the
-/// iced / libcosmic rendering backend.  It creates [`IcedWindow`] descriptors
-/// and applies themes to subsequent renders.
+/// iced / libcosmic rendering backend.  It creates [`IcedWindow`] descriptors,
+/// applies themes, and stores the current [`AppContext`].
 ///
 /// # Running a window
 ///
@@ -17,10 +19,12 @@ use crate::{IcedTheme, IcedWidget, IcedWindow};
 /// let engine = IcedEngine::new();
 /// let _win = engine.create_window(WindowConfig::default());
 /// // pass `_win` to your iced Application's initial state, then call
-/// // `engine.run(app)` to enter the iced event loop.
+/// // `IcedEngine::run_app(title, update, view)` to enter the iced event loop.
 /// ```
 pub struct IcedEngine {
     active_theme: IcedTheme,
+    /// Shared application context: locale, theme name, feature flags.
+    context: Mutex<AppContext>,
 }
 
 impl IcedEngine {
@@ -28,6 +32,7 @@ impl IcedEngine {
     pub fn new() -> Self {
         Self {
             active_theme: IcedTheme::fs_default(),
+            context: Mutex::new(AppContext::new("en", "FreeSynergy Default")),
         }
     }
 
@@ -35,20 +40,24 @@ impl IcedEngine {
     pub fn current_theme(&self) -> &IcedTheme {
         &self.active_theme
     }
-}
 
-impl Default for IcedEngine {
-    fn default() -> Self {
-        Self::new()
+    /// Read a snapshot of the current application context.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal `Mutex` is poisoned (only possible if a thread
+    /// panicked while holding the lock).
+    pub fn app_context(&self) -> AppContext {
+        self.context
+            .lock()
+            .expect("IcedEngine context lock poisoned")
+            .clone()
     }
-}
 
-impl IcedEngine {
     /// Run an iced application using the given title, update, and view functions.
     ///
-    /// This is a convenience wrapper around `iced::application` that lets
-    /// downstream crates launch a full iced event loop without depending on
-    /// `iced` directly.
+    /// Convenience wrapper around `iced::application` so downstream crates
+    /// need not depend on `iced` directly.
     ///
     /// # Type parameters
     /// - `S` — application state (must implement `Default`)
@@ -59,7 +68,7 @@ impl IcedEngine {
     /// # Errors
     ///
     /// Returns an `iced::Error` if the event loop fails to start.
-    pub fn run<S, M, U, V>(title: &'static str, update: U, view: V) -> iced::Result
+    pub fn run_app<S, M, U, V>(title: &'static str, update: U, view: V) -> iced::Result
     where
         S: Default + 'static,
         M: Clone + std::fmt::Debug + Send + 'static,
@@ -70,18 +79,22 @@ impl IcedEngine {
     }
 }
 
+impl Default for IcedEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RenderEngine for IcedEngine {
     type Window = IcedWindow;
     type Widget = IcedWidget;
     type Theme = IcedTheme;
 
-    #[allow(clippy::unnecessary_literal_bound)]
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "iced"
     }
 
-    #[allow(clippy::unnecessary_literal_bound)]
-    fn version(&self) -> &str {
+    fn version(&self) -> &'static str {
         env!("CARGO_PKG_VERSION")
     }
 
@@ -90,16 +103,28 @@ impl RenderEngine for IcedEngine {
     }
 
     fn apply_theme(&self, _theme: &IcedTheme) {
-        // In iced the theme is bound to the Application at startup and can be
-        // changed by returning a new Theme from `Application::theme()`.
+        // In iced the theme is bound to the Application at startup and changed
+        // by returning a new value from `Application::theme()`.
         // `apply_theme` records the intent; the iced Application reads
         // `engine.current_theme()` on the next `theme()` call.
     }
 
     fn dispatch_event(&self, _event: FsEvent) {
-        // Events flow through the iced event loop.  External callers can push
-        // custom events via `iced::window::run_action` or the application's
-        // own command channel.  This hook is a no-op for now.
+        // Events flow through the iced event loop.  External callers push
+        // custom events via the application's own command channel.
+    }
+
+    fn set_context(&self, ctx: AppContext) {
+        *self
+            .context
+            .lock()
+            .expect("IcedEngine context lock poisoned") = ctx;
+    }
+
+    fn run(&self) {
+        // The generic iced event loop is started via `IcedEngine::run_app`.
+        // This trait method is a lifecycle hook for engines that do not need
+        // type-parameterised startup (e.g. a headless test engine).
     }
 
     fn shutdown(&self) {

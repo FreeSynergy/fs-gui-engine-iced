@@ -22,11 +22,14 @@
 // `pub use iced` lets downstream crates (fs-browser, fs-desktop shell)
 // use iced widgets without adding `iced` to their own Cargo.toml.
 
+pub mod capability;
 pub mod engine;
+pub mod mvu;
 pub mod theme;
 pub mod widget;
 pub mod window;
 
+pub use capability::{IcedCapability, CAPABILITY_ID};
 pub use engine::IcedEngine;
 pub use theme::IcedTheme;
 pub use widget::IcedWidget;
@@ -174,5 +177,40 @@ mod tests {
     fn theme_name_contains_free_synergy() {
         let t = IcedTheme::fs_default();
         assert!(t.name().contains("FreeSynergy"));
+    }
+
+    // ── set_context ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn engine_set_context_updates_locale() {
+        use fs_render::{AppContext, RenderEngine};
+        let e = IcedEngine::new();
+        let ctx = AppContext::new("de", "FreeSynergy Default");
+        e.set_context(ctx);
+        assert_eq!(e.app_context().locale, "de");
+    }
+
+    #[test]
+    fn engine_set_context_updates_theme_name() {
+        use fs_render::{AppContext, RenderEngine};
+        let e = IcedEngine::new();
+        e.set_context(AppContext::new("en", "CatppuccinMocha"));
+        assert_eq!(e.app_context().theme_name, "CatppuccinMocha");
+    }
+
+    // ── IcedCapability ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn capability_id_is_correct() {
+        use crate::CAPABILITY_ID;
+        assert_eq!(CAPABILITY_ID, "render.engine.iced");
+    }
+
+    #[test]
+    fn capability_descriptor_has_version() {
+        use crate::IcedCapability;
+        let cap = IcedCapability::descriptor();
+        assert!(!cap.version.is_empty());
+        assert_eq!(cap.id, "render.engine.iced");
     }
 }

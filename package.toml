@@ -1,0 +1,23 @@
+[package]
+id          = "freesynergy/fs-gui-engine-iced"
+name        = "fs-gui-engine-iced"
+version     = "0.1.0"
+type        = "adapter"
+description = "iced / libcosmic render engine adapter for FreeSynergy — implements fs-render traits"
+license     = "MIT"
+authors     = ["FreeSynergy.Net"]
+repository  = "https://github.com/FreeSynergy/fs-gui-engine-iced"
+icon        = "assets/icon.svg"
+
+[adapter]
+trait       = "RenderEngine"
+capability  = "render.engine.iced"
+implements  = "fs-render"
+
+[runtime]
+library     = true
+container   = false
+
+[dependencies]
+fs-render   = "0.2"
+iced        = "0.13"
