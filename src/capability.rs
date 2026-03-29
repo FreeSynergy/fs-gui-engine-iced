@@ -22,18 +22,21 @@ pub const CAPABILITY_ID: &str = "render.engine.iced";
 pub struct IcedCapability {
     /// Stable capability string.
     pub id: &'static str,
-    /// Human-readable display name.
-    pub display_name: &'static str,
+    /// Localised human-readable display name (from `gui-iced-capability-name` FTL key).
+    pub display_name: String,
     /// Engine crate version.
     pub version: &'static str,
 }
 
 impl IcedCapability {
     /// Returns the capability descriptor for this engine.
+    ///
+    /// `display_name` is resolved via `fs-i18n`; falls back to the FTL key
+    /// itself if the global i18n instance has not been initialised yet.
     pub fn descriptor() -> Self {
         Self {
             id: CAPABILITY_ID,
-            display_name: "FreeSynergy iced Render Engine",
+            display_name: fs_i18n::t(crate::keys::CAPABILITY_NAME).to_string(),
             version: env!("CARGO_PKG_VERSION"),
         }
     }

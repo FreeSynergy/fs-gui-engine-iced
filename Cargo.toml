@@ -9,4 +9,5 @@ repository  = "https://github.com/FreeSynergy/fs-gui-engine-iced"
 
 [dependencies]
 fs-render = { path = "../fs-render" }
+fs-i18n   = { path = "../fs-i18n" }
 iced      = { version = "0.13", features = ["tokio"] }

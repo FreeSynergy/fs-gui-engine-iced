@@ -24,6 +24,7 @@
 
 pub mod capability;
 pub mod engine;
+pub mod keys;
 pub mod mvu;
 pub mod theme;
 pub mod widget;
