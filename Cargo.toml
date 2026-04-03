@@ -10,4 +10,7 @@ repository  = "https://github.com/FreeSynergy/fs-gui-engine-iced"
 [dependencies]
 fs-render = { path = "../fs-render" }
 fs-i18n   = { path = "../fs-i18n" }
-iced      = { version = "0.13", features = ["tokio"] }
+# iced core + async runtime
+iced      = { version = "0.13", features = ["tokio", "advanced", "image", "svg"] }
+# iced_aw: additional widgets (tabs, card, badge, spinner, context-menu, date-picker …)
+iced_aw   = { version = "0.11", default-features = false, features = ["badge", "card", "spinner", "context_menu", "tab_bar", "number_input"] }

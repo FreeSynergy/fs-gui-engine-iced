@@ -25,6 +25,7 @@
 pub mod capability;
 pub mod engine;
 pub mod keys;
+pub mod layout;
 pub mod mvu;
 pub mod theme;
 pub mod widget;
@@ -32,6 +33,7 @@ pub mod window;
 
 pub use capability::{IcedCapability, CAPABILITY_ID};
 pub use engine::IcedEngine;
+pub use layout::{load_layout_or_default, render_element, IcedLayoutInterpreter, LayoutMessage};
 pub use theme::IcedTheme;
 pub use widget::IcedWidget;
 pub use window::IcedWindow;
