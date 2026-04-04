@@ -196,12 +196,7 @@ pub fn render_element(element: LayoutElement) -> Element<'static, LayoutMessage>
             })
             .into(),
 
-        LayoutElement::Icon { name, size } => {
-            // Icon placeholder — replaced when Store icon-set artifacts are loaded.
-            #[allow(clippy::cast_possible_truncation)]
-            let size_u16 = size as u16;
-            text(format!("[{name}]")).size(size_u16).into()
-        }
+        LayoutElement::Icon { name, size } => render_icon(name, size),
 
         LayoutElement::Row { children, gap } => {
             let kids: Vec<Element<'static, LayoutMessage>> =
@@ -257,6 +252,63 @@ fn text_size_px(size: &TextSize) -> u16 {
         TextSize::Label => 14,
         TextSize::Subheading => 16,
         TextSize::Heading => 20,
+    }
+}
+
+/// Render an icon by name.
+///
+/// Tries to load an SVG from the data directory first.  Falls back to a
+/// single-character emoji text widget when no SVG file is found.
+fn render_icon(name: String, size: u32) -> Element<'static, LayoutMessage> {
+    // SVG search paths (icon-set artifacts are installed into these directories).
+    let candidates = icon_svg_paths(&name);
+    for path in candidates {
+        if path.exists() {
+            #[allow(clippy::cast_precision_loss)]
+            let px = size as f32;
+            return iced::widget::svg(iced::widget::svg::Handle::from_path(path))
+                .width(Length::Fixed(px))
+                .height(Length::Fixed(px))
+                .into();
+        }
+    }
+    // Fallback: render the name as a small bracketed text icon.
+    #[allow(clippy::cast_possible_truncation)]
+    text(icon_emoji_fallback(&name)).size(size as u16).into()
+}
+
+/// Candidate SVG paths for a given icon name.
+fn icon_svg_paths(name: &str) -> Vec<std::path::PathBuf> {
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
+    let base_name = format!("{name}.svg");
+    vec![
+        // User icon-set artifacts (installed from Store).
+        std::path::PathBuf::from(&home)
+            .join(".local/share/freesynergy/icons")
+            .join(&base_name),
+        // System-wide icon-set artifacts.
+        std::path::PathBuf::from("/var/lib/freesynergy/icons").join(&base_name),
+        // Binary-relative assets (development / bundled builds).
+        std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|d| d.join("assets/icons").join(&base_name)))
+            .unwrap_or_default(),
+    ]
+}
+
+/// A short emoji fallback for well-known icon names.
+fn icon_emoji_fallback(name: &str) -> &'static str {
+    match name {
+        "settings" | "preferences" => "⚙",
+        "apps" | "launcher" => "⊞",
+        "help" | "question" => "?",
+        "ai" | "assistant" => "✦",
+        "notifications" | "bell" => "🔔",
+        "search" => "⌕",
+        "close" | "quit" => "✕",
+        "pin" => "📌",
+        "unpin" => "📍",
+        _ => "●",
     }
 }
 
