@@ -77,6 +77,39 @@ impl IcedEngine {
     {
         iced::application(title, update, view).run()
     }
+
+    /// Like [`run_app`] but also wires up a subscription function.
+    ///
+    /// Use this variant when the application needs to subscribe to external events
+    /// (mouse cursor, timers, window resize, …).
+    ///
+    /// # Type parameters
+    /// - `S`   — application state (must implement `Default`)
+    /// - `M`   — message type
+    /// - `U`   — update  `fn(&mut S, M) -> Task<M>`
+    /// - `V`   — view    `fn(&S) -> Element<M>`
+    /// - `Sub` — subscription `fn(&S) -> Subscription<M>`
+    ///
+    /// # Errors
+    ///
+    /// Returns an `iced::Error` if the event loop fails to start.
+    pub fn run_app_with_sub<S, M, U, V, Sub>(
+        title: &'static str,
+        update: U,
+        view: V,
+        subscription: Sub,
+    ) -> iced::Result
+    where
+        S: Default + 'static,
+        M: Clone + std::fmt::Debug + Send + 'static,
+        U: Fn(&mut S, M) -> iced::Task<M> + 'static,
+        V: Fn(&S) -> iced::Element<'_, M> + 'static,
+        Sub: Fn(&S) -> iced::Subscription<M> + 'static,
+    {
+        iced::application(title, update, view)
+            .subscription(subscription)
+            .run()
+    }
 }
 
 impl Default for IcedEngine {

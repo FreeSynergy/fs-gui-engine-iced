@@ -196,7 +196,7 @@ pub fn render_element(element: LayoutElement) -> Element<'static, LayoutMessage>
             })
             .into(),
 
-        LayoutElement::Icon { name, size } => render_icon(name, size),
+        LayoutElement::Icon { name, size } => render_icon(&name, size),
 
         LayoutElement::Row { children, gap } => {
             let kids: Vec<Element<'static, LayoutMessage>> =
@@ -259,9 +259,9 @@ fn text_size_px(size: &TextSize) -> u16 {
 ///
 /// Tries to load an SVG from the data directory first.  Falls back to a
 /// single-character emoji text widget when no SVG file is found.
-fn render_icon(name: String, size: u32) -> Element<'static, LayoutMessage> {
+fn render_icon(name: &str, size: u32) -> Element<'static, LayoutMessage> {
     // SVG search paths (icon-set artifacts are installed into these directories).
-    let candidates = icon_svg_paths(&name);
+    let candidates = icon_svg_paths(name);
     for path in candidates {
         if path.exists() {
             #[allow(clippy::cast_precision_loss)]
@@ -274,7 +274,7 @@ fn render_icon(name: String, size: u32) -> Element<'static, LayoutMessage> {
     }
     // Fallback: render the name as a small bracketed text icon.
     #[allow(clippy::cast_possible_truncation)]
-    text(icon_emoji_fallback(&name)).size(size as u16).into()
+    text(icon_emoji_fallback(name)).size(size as u16).into()
 }
 
 /// Candidate SVG paths for a given icon name.
