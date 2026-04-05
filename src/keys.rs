@@ -17,6 +17,17 @@ pub const ENGINE_DISPLAY_NAME: &str = "gui-iced-engine-display-name";
 /// Localised name shown to users when listing available render engines.
 pub const CAPABILITY_NAME: &str = "gui-iced-capability-name";
 
+// ── Navigation ────────────────────────────────────────────────────────────────
+
+/// Accessibility hint shown for corner menu indicators.
+pub const NAV_CORNER_INDICATOR: &str = "nav-indicator-corner-hint";
+
+/// Accessibility hint shown for side menu indicators.
+pub const NAV_SIDE_INDICATOR: &str = "nav-indicator-side-hint";
+
+/// Label suffix key for items that have a sub-menu.
+pub const NAV_ITEM_HAS_SUB: &str = "nav-item-has-sub-items";
+
 // ── Errors ────────────────────────────────────────────────────────────────────
 
 /// Internal context mutex was poisoned (thread panicked while holding it).

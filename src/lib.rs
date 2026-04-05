@@ -27,6 +27,7 @@ pub mod engine;
 pub mod keys;
 pub mod layout;
 pub mod mvu;
+pub mod navigation;
 pub mod theme;
 pub mod widget;
 pub mod window;
@@ -34,6 +35,10 @@ pub mod window;
 pub use capability::{IcedCapability, CAPABILITY_ID};
 pub use engine::IcedEngine;
 pub use layout::{load_layout_or_default, render_element, IcedLayoutInterpreter, LayoutMessage};
+pub use navigation::{
+    render_corner_menu, render_side_menu, update_corner_menu, update_side_menu, CornerMenuState,
+    MenuConfig, NavMessage, SideMenuState,
+};
 pub use theme::IcedTheme;
 pub use widget::IcedWidget;
 pub use window::IcedWindow;
