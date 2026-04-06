@@ -240,6 +240,56 @@ pub fn render_element(element: LayoutElement) -> Element<'static, LayoutMessage>
             .into(),
 
         LayoutElement::Spacer { pixels } => Space::new(0, pixels).into(),
+
+        LayoutElement::ExpandableGroup {
+            label_key,
+            icon_key: _,
+            children,
+            expanded,
+        } => {
+            let header = button(text(label_key).size(13))
+                .on_press(LayoutMessage::Action("toggle-group".into()))
+                .padding([4, 8]);
+            if expanded {
+                let kids: Vec<Element<'static, LayoutMessage>> =
+                    children.into_iter().map(render_element).collect();
+                Column::new()
+                    .push(header)
+                    .push(Column::from_vec(kids).spacing(2).padding([0, 12]))
+                    .spacing(2)
+                    .into()
+            } else {
+                header.into()
+            }
+        }
+
+        LayoutElement::TextInput {
+            placeholder_key,
+            value,
+            on_change_action,
+        } => iced::widget::text_input(&placeholder_key, &value)
+            .on_input(move |v| LayoutMessage::Action(format!("{on_change_action}:{v}")))
+            .padding([6, 8])
+            .size(13)
+            .into(),
+
+        LayoutElement::SearchResult {
+            icon_key: _,
+            label,
+            source,
+            action,
+        } => button(
+            Row::new()
+                .push(text(label).size(13))
+                .push(Space::new(Length::Fill, 0))
+                .push(text(source).size(11))
+                .align_y(Alignment::Center)
+                .spacing(8),
+        )
+        .on_press(LayoutMessage::Action(action))
+        .width(Length::Fill)
+        .padding([4, 8])
+        .into(),
     }
 }
 
