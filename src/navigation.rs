@@ -266,19 +266,23 @@ fn corner_indicator_button(
         },
     };
 
-    button(Space::new().width(Length::Fixed(r)).height(Length::Fixed(r)))
-        .on_press(NavMessage::CornerMenuToggle(corner))
-        .style(move |_theme: &Theme, _status| iced::widget::button::Style {
-            background: Some(Background::Color(color)),
-            border: Border {
-                radius,
-                ..Border::default()
-            },
-            text_color: Color::TRANSPARENT,
-            ..iced::widget::button::Style::default()
-        })
-        .padding(0)
-        .into()
+    button(
+        Space::new()
+            .width(Length::Fixed(r))
+            .height(Length::Fixed(r)),
+    )
+    .on_press(NavMessage::CornerMenuToggle(corner))
+    .style(move |_theme: &Theme, _status| iced::widget::button::Style {
+        background: Some(Background::Color(color)),
+        border: Border {
+            radius,
+            ..Border::default()
+        },
+        text_color: Color::TRANSPARENT,
+        ..iced::widget::button::Style::default()
+    })
+    .padding(0)
+    .into()
 }
 
 /// A styled button that renders as a half-disk on the given `side`.
@@ -330,19 +334,23 @@ fn side_indicator_button(
         Side::Top | Side::Bottom => (r * 2.0, r),
     };
 
-    button(Space::new().width(Length::Fixed(w)).height(Length::Fixed(h)))
-        .on_press(NavMessage::SideMenuToggle(side))
-        .style(move |_theme: &Theme, _status| iced::widget::button::Style {
-            background: Some(Background::Color(color)),
-            border: Border {
-                radius,
-                ..Border::default()
-            },
-            text_color: Color::TRANSPARENT,
-            ..iced::widget::button::Style::default()
-        })
-        .padding(0)
-        .into()
+    button(
+        Space::new()
+            .width(Length::Fixed(w))
+            .height(Length::Fixed(h)),
+    )
+    .on_press(NavMessage::SideMenuToggle(side))
+    .style(move |_theme: &Theme, _status| iced::widget::button::Style {
+        background: Some(Background::Color(color)),
+        border: Border {
+            radius,
+            ..Border::default()
+        },
+        text_color: Color::TRANSPARENT,
+        ..iced::widget::button::Style::default()
+    })
+    .padding(0)
+    .into()
 }
 
 // ── Item columns ──────────────────────────────────────────────────────────────
@@ -466,18 +474,18 @@ fn corner_item_button(
     let has_sub = !item.sub_items.is_empty();
     let sz = height.max(24.0);
 
-    let icon_el: Element<'static, NavMessage> =
-        if let Some(svg_str) = resolve_inline_svg(&icon_key) {
-            let handle = svg_handle_from_str(svg_str, "#e2e8f0");
-            svg(handle)
-                .width(Length::Fixed(sz))
-                .height(Length::Fixed(sz))
-                .into()
-        } else {
-            // Fallback: first two chars of label so something is visible.
-            let short: String = label.chars().take(2).collect();
-            text(short).size(sz / 2.0).color(Color::WHITE).into()
-        };
+    let icon_el: Element<'static, NavMessage> = if let Some(svg_str) = resolve_inline_svg(&icon_key)
+    {
+        let handle = svg_handle_from_str(svg_str, "#e2e8f0");
+        svg(handle)
+            .width(Length::Fixed(sz))
+            .height(Length::Fixed(sz))
+            .into()
+    } else {
+        // Fallback: first two chars of label so something is visible.
+        let short: String = label.chars().take(2).collect();
+        text(short).size(sz / 2.0).color(Color::WHITE).into()
+    };
 
     let sub_badge: Element<'static, NavMessage> = if has_sub {
         text("\u{25b6}").size(8.0).color(Color::WHITE).into()
@@ -485,18 +493,13 @@ fn corner_item_button(
         Space::new().into()
     };
 
-    let btn_content: Element<'static, NavMessage> = Row::new()
-        .push(icon_el)
-        .push(sub_badge)
-        .into();
+    let btn_content: Element<'static, NavMessage> = Row::new().push(icon_el).push(sub_badge).into();
 
     let tooltip_label: Element<'static, NavMessage> =
         iced::widget::container(text(label).size(12).color(Color::WHITE))
             .padding([4, 8])
             .style(|_theme: &Theme| iced::widget::container::Style {
-                background: Some(Background::Color(Color::from_rgba(
-                    0.04, 0.06, 0.14, 0.92,
-                ))),
+                background: Some(Background::Color(Color::from_rgba(0.04, 0.06, 0.14, 0.92))),
                 border: Border {
                     color: Color::from_rgba(0.02, 0.74, 0.84, 0.35),
                     width: 1.0,
@@ -522,9 +525,7 @@ fn corner_item_button(
         })
         .padding(4);
 
-    Tooltip::new(btn, tooltip_label, tooltip_pos)
-        .gap(4)
-        .into()
+    Tooltip::new(btn, tooltip_label, tooltip_pos).gap(4).into()
 }
 
 /// Render a single side-menu item as a transparent button.
@@ -538,16 +539,16 @@ fn side_item_button(
     let action = item.action.clone();
     let sz = height.max(24.0);
 
-    let icon_el: Element<'static, NavMessage> =
-        if let Some(svg_str) = resolve_inline_svg(&icon_key) {
-            let handle = svg_handle_from_str(svg_str, "#e2e8f0");
-            svg(handle)
-                .width(Length::Fixed(sz))
-                .height(Length::Fixed(sz))
-                .into()
-        } else {
-            text(label).size(13.0).color(Color::WHITE).into()
-        };
+    let icon_el: Element<'static, NavMessage> = if let Some(svg_str) = resolve_inline_svg(&icon_key)
+    {
+        let handle = svg_handle_from_str(svg_str, "#e2e8f0");
+        svg(handle)
+            .width(Length::Fixed(sz))
+            .height(Length::Fixed(sz))
+            .into()
+    } else {
+        text(label).size(13.0).color(Color::WHITE).into()
+    };
 
     button(icon_el)
         .on_press(NavMessage::SideMenuAction(side, action))

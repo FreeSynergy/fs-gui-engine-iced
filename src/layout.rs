@@ -328,7 +328,7 @@ fn render_icon(name: &str, size: u32) -> Element<'static, LayoutMessage> {
         }
     }
     // Fallback: render the name as a small bracketed text icon.
-    #[allow(clippy::cast_possible_truncation)]
+    #[allow(clippy::cast_precision_loss)]
     text(icon_emoji_fallback(name)).size(size as f32).into()
 }
 
