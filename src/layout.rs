@@ -55,7 +55,7 @@ impl<'a> IcedLayoutInterpreter<'a> {
         kind: &ShellKind,
     ) -> Element<'static, LayoutMessage> {
         if !shell.enabled {
-            return Space::new(0, 0).into();
+            return Space::new().into();
         }
 
         let slot_elements = self.render_slots(&shell.slots, kind);
@@ -181,7 +181,7 @@ pub fn render_element(element: LayoutElement) -> Element<'static, LayoutMessage>
             color,
         } => {
             let size_px = text_size_px(&size);
-            let mut t = text(content).size(size_px);
+            let mut t = text(content).size(f32::from(size_px));
             if let Some(c) = color {
                 t = t.color(iced::Color::from_rgba(c.r, c.g, c.b, c.a));
             }
@@ -207,7 +207,7 @@ pub fn render_element(element: LayoutElement) -> Element<'static, LayoutMessage>
             let kids: Vec<Element<'static, LayoutMessage>> =
                 children.into_iter().map(render_element).collect();
             Row::from_vec(kids)
-                .spacing(gap)
+                .spacing(f32::from(gap))
                 .align_y(Alignment::Center)
                 .into()
         }
@@ -215,7 +215,7 @@ pub fn render_element(element: LayoutElement) -> Element<'static, LayoutMessage>
         LayoutElement::Column { children, gap } => {
             let kids: Vec<Element<'static, LayoutMessage>> =
                 children.into_iter().map(render_element).collect();
-            Column::from_vec(kids).spacing(gap).into()
+            Column::from_vec(kids).spacing(f32::from(gap)).into()
         }
 
         LayoutElement::List {
@@ -234,7 +234,7 @@ pub fn render_element(element: LayoutElement) -> Element<'static, LayoutMessage>
 
         LayoutElement::Separator { label_key } => match label_key {
             Some(key) => text(key).size(11).into(),
-            None => Space::new(Length::Fill, 1).into(),
+            None => Space::new().width(Length::Fill).height(1.0).into(),
         },
 
         LayoutElement::Badge { content, color: _ } => Badge::new(text(content).size(11)).into(),
@@ -244,7 +244,7 @@ pub fn render_element(element: LayoutElement) -> Element<'static, LayoutMessage>
             .height(Length::Fixed(20.0))
             .into(),
 
-        LayoutElement::Spacer { pixels } => Space::new(0, pixels).into(),
+        LayoutElement::Spacer { pixels } => Space::new().height(f32::from(pixels)).into(),
 
         LayoutElement::ExpandableGroup {
             label_key,
@@ -286,7 +286,7 @@ pub fn render_element(element: LayoutElement) -> Element<'static, LayoutMessage>
         } => button(
             Row::new()
                 .push(text(label).size(13))
-                .push(Space::new(Length::Fill, 0))
+                .push(Space::new().width(Length::Fill))
                 .push(text(source).size(11))
                 .align_y(Alignment::Center)
                 .spacing(8),
@@ -329,7 +329,7 @@ fn render_icon(name: &str, size: u32) -> Element<'static, LayoutMessage> {
     }
     // Fallback: render the name as a small bracketed text icon.
     #[allow(clippy::cast_possible_truncation)]
-    text(icon_emoji_fallback(name)).size(size as u16).into()
+    text(icon_emoji_fallback(name)).size(size as f32).into()
 }
 
 /// Candidate SVG paths for a given icon name.

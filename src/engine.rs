@@ -75,7 +75,7 @@ impl IcedEngine {
         U: Fn(&mut S, M) -> iced::Task<M> + 'static,
         V: Fn(&S) -> iced::Element<'_, M> + 'static,
     {
-        iced::application(title, update, view).run()
+        iced::application(S::default, update, view).title(title).run()
     }
 
     /// Like [`run_app`] but also wires up a subscription function.
@@ -106,7 +106,8 @@ impl IcedEngine {
         V: Fn(&S) -> iced::Element<'_, M> + 'static,
         Sub: Fn(&S) -> iced::Subscription<M> + 'static,
     {
-        iced::application(title, update, view)
+        iced::application(S::default, update, view)
+            .title(title)
             .subscription(subscription)
             .run()
     }

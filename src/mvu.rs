@@ -95,6 +95,6 @@ where
     ///
     /// Returns an `iced::Error` if the event loop fails to start.
     pub fn run(self) -> iced::Result {
-        iced::application(self.title, self.update, self.view).run()
+        iced::application(S::default, self.update, self.view).title(self.title).run()
     }
 }
