@@ -1,6 +1,6 @@
 [package]
 name        = "fs-gui-engine-iced"
-description = "FreeSynergy iced/libcosmic render engine — implements fs-render traits"
+description = "FreeSynergy iced render engine — implements fs-render traits"
 version     = "0.1.0"
 edition     = "2021"
 license     = "MIT"
@@ -11,6 +11,22 @@ repository  = "https://github.com/FreeSynergy/fs-gui-engine-iced"
 fs-render = { path = "../fs-render" }
 fs-i18n   = { path = "../fs-i18n" }
 # iced core + async runtime
-iced      = { version = "0.13", features = ["tokio", "advanced", "image", "svg"] }
+iced      = { version = "0.14", features = ["tokio", "advanced", "image", "svg"] }
 # iced_aw: additional widgets (tabs, card, badge, spinner, context-menu, date-picker …)
-iced_aw   = { version = "0.11", default-features = false, features = ["badge", "card", "spinner", "context_menu", "tab_bar", "number_input"] }
+iced_aw   = { version = "0.13", default-features = false, features = ["badge", "card", "spinner", "context_menu", "tab_bar", "number_input"] }
+# Wayland Layer Shell — panels, docks, overlays (Corner/Side menus)
+iced_layershell  = { version = "0.17", optional = true }
+# XDG Portals — file picker, notifications, screenshots (desktop-agnostic)
+ashpd            = { version = "0.13", optional = true }
+# Color math — theme interpolation, dark/light transitions, Oklch
+palette          = { version = "0.7", optional = true }
+# Freedesktop icon-theme lookup — resolves icon names to paths
+freedesktop-icons = { version = "0.4", optional = true }
+
+[features]
+default        = []
+wayland        = ["iced_layershell"]
+portals        = ["ashpd"]
+theme-ext      = ["palette"]
+icon-lookup    = ["freedesktop-icons"]
+desktop        = ["wayland", "portals", "theme-ext", "icon-lookup"]

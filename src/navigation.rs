@@ -21,8 +21,8 @@ use fs_render::navigation::{
     Corner, CornerMenuDescriptor, MenuItemDescriptor, Side, SideMenuDescriptor,
 };
 use iced::border::Radius;
-use iced::widget::{button, scrollable, text, Column, Space};
-use iced::{Background, Border, Color, Element, Length, Shadow, Theme};
+use iced::widget::{button, scrollable, svg, text, Column, Row, Space, Tooltip};
+use iced::{Background, Border, Color, Element, Length, Theme};
 
 /// Number of items before the scroll fallback activates.
 const SCROLL_THRESHOLD: usize = 8;
@@ -266,7 +266,7 @@ fn corner_indicator_button(
         },
     };
 
-    button(Space::new(Length::Fixed(r), Length::Fixed(r)))
+    button(Space::new().width(Length::Fixed(r)).height(Length::Fixed(r)))
         .on_press(NavMessage::CornerMenuToggle(corner))
         .style(move |_theme: &Theme, _status| iced::widget::button::Style {
             background: Some(Background::Color(color)),
@@ -275,7 +275,7 @@ fn corner_indicator_button(
                 ..Border::default()
             },
             text_color: Color::TRANSPARENT,
-            shadow: Shadow::default(),
+            ..iced::widget::button::Style::default()
         })
         .padding(0)
         .into()
@@ -330,7 +330,7 @@ fn side_indicator_button(
         Side::Top | Side::Bottom => (r * 2.0, r),
     };
 
-    button(Space::new(Length::Fixed(w), Length::Fixed(h)))
+    button(Space::new().width(Length::Fixed(w)).height(Length::Fixed(h)))
         .on_press(NavMessage::SideMenuToggle(side))
         .style(move |_theme: &Theme, _status| iced::widget::button::Style {
             background: Some(Background::Color(color)),
@@ -339,7 +339,7 @@ fn side_indicator_button(
                 ..Border::default()
             },
             text_color: Color::TRANSPARENT,
-            shadow: Shadow::default(),
+            ..iced::widget::button::Style::default()
         })
         .padding(0)
         .into()
@@ -393,37 +393,137 @@ fn items_column_side(
     }
 }
 
+// ── Inline SVG icon data ──────────────────────────────────────────────────────
+
+/// Inline SVG strings for the `fs:nav/*` icon namespace.
+///
+/// Replaces `currentColor` at call time so iced's `resvg` renderer sees a
+/// concrete fill/stroke value.
+const ICON_LAUNCHER: &str = r#"<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>"#;
+const ICON_STORE: &str = r#"<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>"#;
+const ICON_BROWSER: &str = r#"<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>"#;
+const ICON_LENSES: &str = r#"<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>"#;
+const ICON_TASKS: &str = r#"<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>"#;
+const ICON_BOTS: &str = r#"<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>"#;
+const ICON_MANAGERS: &str = r#"<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>"#;
+const ICON_PROFILE: &str = r#"<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>"#;
+const ICON_SETTINGS: &str = r#"<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>"#;
+const ICON_HELP: &str = r#"<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>"#;
+const ICON_AI: &str = r#"<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>"#;
+const ICON_DESKTOP: &str = r#"<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/></svg>"#;
+const ICON_CONTAINER: &str = r#"<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>"#;
+
+/// Resolve an `fs:nav/*` or `fs:apps/*` icon key to an inline SVG string.
+///
+/// Falls back to `None` when the key is unknown so callers can use a text
+/// fallback instead.
+fn resolve_inline_svg(icon_key: &str) -> Option<&'static str> {
+    // Strip namespace prefix (e.g. "fs:nav/" or "fs:apps/") → bare name.
+    let name = icon_key.split('/').next_back().unwrap_or(icon_key);
+    Some(match name {
+        "launcher" => ICON_LAUNCHER,
+        "store" => ICON_STORE,
+        "browser" => ICON_BROWSER,
+        "lenses" => ICON_LENSES,
+        "tasks" => ICON_TASKS,
+        "bots" => ICON_BOTS,
+        "managers" => ICON_MANAGERS,
+        "profile" => ICON_PROFILE,
+        "settings" => ICON_SETTINGS,
+        "help" => ICON_HELP,
+        "ai" | "assistant" => ICON_AI,
+        "desktop" => ICON_DESKTOP,
+        "container" => ICON_CONTAINER,
+        _ => return None,
+    })
+}
+
+/// Build an iced SVG handle from a raw SVG string.
+///
+/// Replaces `currentColor` with a concrete hex value so `resvg` renders it.
+fn svg_handle_from_str(svg_str: &str, color: &str) -> svg::Handle {
+    let data = svg_str
+        .replace("stroke=\"currentColor\"", &format!("stroke=\"{color}\""))
+        .replace("fill=\"currentColor\"", &format!("fill=\"{color}\""));
+    svg::Handle::from_memory(data.into_bytes())
+}
+
 // ── Item buttons ──────────────────────────────────────────────────────────────
 
-/// Render a single corner-menu item as a transparent button.
+/// Render a single corner-menu item as a square icon button with a tooltip.
 ///
-/// The button height reflects the hover-magnification effect.
-/// Sub-items are indicated with a `▶` suffix on the label key.
+/// The button size reflects the hover-magnification effect.
+/// If the icon key resolves to an inline SVG it is shown as an SVG widget;
+/// otherwise a short text label is used as fallback.
 fn corner_item_button(
     item: &MenuItemDescriptor,
     height: f32,
     corner: Corner,
 ) -> Element<'static, NavMessage> {
+    let icon_key = item.icon.primary.key.clone();
     let label = item.label_key.clone();
     let action = item.action.clone();
     let has_sub = !item.sub_items.is_empty();
+    let sz = height.max(24.0);
 
-    let display: String = if has_sub {
-        format!("{label} \u{25b6}")
+    let icon_el: Element<'static, NavMessage> =
+        if let Some(svg_str) = resolve_inline_svg(&icon_key) {
+            let handle = svg_handle_from_str(svg_str, "#e2e8f0");
+            svg(handle)
+                .width(Length::Fixed(sz))
+                .height(Length::Fixed(sz))
+                .into()
+        } else {
+            // Fallback: first two chars of label so something is visible.
+            let short: String = label.chars().take(2).collect();
+            text(short).size(sz / 2.0).color(Color::WHITE).into()
+        };
+
+    let sub_badge: Element<'static, NavMessage> = if has_sub {
+        text("\u{25b6}").size(8.0).color(Color::WHITE).into()
     } else {
-        label
+        Space::new().into()
     };
 
-    button(text(display).size(13.0))
+    let btn_content: Element<'static, NavMessage> = Row::new()
+        .push(icon_el)
+        .push(sub_badge)
+        .into();
+
+    let tooltip_label: Element<'static, NavMessage> =
+        iced::widget::container(text(label).size(12).color(Color::WHITE))
+            .padding([4, 8])
+            .style(|_theme: &Theme| iced::widget::container::Style {
+                background: Some(Background::Color(Color::from_rgba(
+                    0.04, 0.06, 0.14, 0.92,
+                ))),
+                border: Border {
+                    color: Color::from_rgba(0.02, 0.74, 0.84, 0.35),
+                    width: 1.0,
+                    radius: 4.0.into(),
+                },
+                ..iced::widget::container::Style::default()
+            })
+            .into();
+
+    let tooltip_pos = match corner {
+        Corner::TopLeft | Corner::BottomLeft => iced::widget::tooltip::Position::Right,
+        Corner::TopRight | Corner::BottomRight => iced::widget::tooltip::Position::Left,
+    };
+
+    let btn = button(btn_content)
         .on_press(NavMessage::CornerMenuAction(corner, action))
-        .height(Length::Fixed(height.max(24.0)))
+        .width(Length::Fixed(sz + 8.0))
+        .height(Length::Fixed(sz + 8.0))
         .style(|_theme: &Theme, _status| iced::widget::button::Style {
             background: None,
             text_color: Color::WHITE,
-            border: Border::default(),
-            shadow: Shadow::default(),
+            ..iced::widget::button::Style::default()
         })
-        .padding([2, 8])
+        .padding(4);
+
+    Tooltip::new(btn, tooltip_label, tooltip_pos)
+        .gap(4)
         .into()
 }
 
@@ -433,26 +533,31 @@ fn side_item_button(
     height: f32,
     side: Side,
 ) -> Element<'static, NavMessage> {
+    let icon_key = item.icon.primary.key.clone();
     let label = item.label_key.clone();
     let action = item.action.clone();
-    let has_sub = !item.sub_items.is_empty();
+    let sz = height.max(24.0);
 
-    let display: String = if has_sub {
-        format!("{label} \u{25b6}")
-    } else {
-        label
-    };
+    let icon_el: Element<'static, NavMessage> =
+        if let Some(svg_str) = resolve_inline_svg(&icon_key) {
+            let handle = svg_handle_from_str(svg_str, "#e2e8f0");
+            svg(handle)
+                .width(Length::Fixed(sz))
+                .height(Length::Fixed(sz))
+                .into()
+        } else {
+            text(label).size(13.0).color(Color::WHITE).into()
+        };
 
-    button(text(display).size(13.0))
+    button(icon_el)
         .on_press(NavMessage::SideMenuAction(side, action))
-        .height(Length::Fixed(height.max(24.0)))
+        .height(Length::Fixed(sz + 8.0))
         .style(|_theme: &Theme, _status| iced::widget::button::Style {
             background: None,
             text_color: Color::WHITE,
-            border: Border::default(),
-            shadow: Shadow::default(),
+            ..iced::widget::button::Style::default()
         })
-        .padding([2, 8])
+        .padding([2, 4])
         .into()
 }
 

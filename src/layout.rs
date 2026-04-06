@@ -143,12 +143,17 @@ impl LayoutInterpreter for IcedLayoutInterpreter<'_> {
 
     fn interpret(&self, descriptor: &LayoutDescriptor) -> Element<'static, LayoutMessage> {
         let topbar = self.render_shell(&descriptor.topbar, &ShellKind::Topbar);
-        let sidebar = self.render_shell(&descriptor.sidebar, &ShellKind::Sidebar);
+        let left_sidebar = self.render_shell(&descriptor.sidebar, &ShellKind::Sidebar);
+        let right_sidebar = self.render_shell(&descriptor.right_sidebar, &ShellKind::Sidebar);
         let bottombar = self.render_shell(&descriptor.bottombar, &ShellKind::Bottombar);
         let main_area = self.render_shell(&descriptor.main, &ShellKind::Main);
 
-        let center: Element<'static, LayoutMessage> =
-            Row::new().push(sidebar).push(main_area).spacing(0).into();
+        let center: Element<'static, LayoutMessage> = Row::new()
+            .push(left_sidebar)
+            .push(main_area)
+            .push(right_sidebar)
+            .spacing(0)
+            .into();
 
         container(
             Column::new()
