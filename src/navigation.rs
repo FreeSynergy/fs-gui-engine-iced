@@ -6,13 +6,14 @@
 //   only depend on fs-render traits and NavMessage.
 //
 // Visual approach:
-//   Indicators   — styled buttons with asymmetric border-radius create the
-//                  quarter-disk (corner) and half-disk (side) shapes without
-//                  requiring the `canvas` feature.
-//   Items        — Column of transparent buttons; scrollable when count exceeds
-//                  SCROLL_THRESHOLD (mobile / small-screen fallback).
-//   Magnification — item height computed via exponential falloff from the cursor
-//                   item; matches HoverMagnification::size_at_distance semantics.
+//   Corner menus — items arranged on a quarter-circle arc using a stack of
+//                  full-screen containers with corner-relative padding.
+//                  Indicator = quarter-disk button at the exact corner.
+//   Side menus   — Left/Right: items in a vertical Column next to the indicator.
+//                  Top/Bottom: items in a horizontal Row below/above the indicator.
+//   Double logo  — CompositeIcon: primary at full size, secondary at half size
+//                  overlaid at the bottom-right via a local stack.
+//   Magnification — item size computed via exponential falloff (HoverMagnification).
 //
 // All produced Elements have 'static lifetime — all captured data is Copy or
 // owned, so no external borrows escape.
@@ -21,10 +22,10 @@ use fs_render::navigation::{
     Corner, CornerMenuDescriptor, MenuItemDescriptor, Side, SideMenuDescriptor,
 };
 use iced::border::Radius;
-use iced::widget::{button, scrollable, svg, text, Column, Row, Space, Tooltip};
-use iced::{Background, Border, Color, Element, Length, Theme};
+use iced::widget::{button, container, scrollable, stack, svg, text, Column, Row, Space, Tooltip};
+use iced::{Alignment, Background, Border, Color, Element, Length, Padding, Theme};
 
-/// Number of items before the scroll fallback activates.
+/// Number of items before the scroll fallback activates (side menus only).
 const SCROLL_THRESHOLD: usize = 8;
 
 // ── MenuConfig ────────────────────────────────────────────────────────────────
@@ -142,9 +143,11 @@ pub fn update_side_menu(state: &mut SideMenuState, side: Side, msg: &NavMessage)
 
 /// Render a corner menu as a self-contained iced [`Element`].
 ///
-/// The quarter-disk indicator button is always visible.  When `state.open`,
-/// the item list appears adjacent to it.  Items beyond [`SCROLL_THRESHOLD`]
-/// are wrapped in a `scrollable` for mobile / small-screen fallback.
+/// Visual design:
+/// - The quarter-disk indicator button is always visible at the corner.
+/// - When `state.open`, items fan out in a **quarter-circle arc** away from
+///   the corner, using a full-screen `stack` of positioned containers.
+///   The arc radius is derived from `config.indicator_radius` and `config.icon_size`.
 pub fn render_corner_menu(
     descriptor: &dyn CornerMenuDescriptor,
     state: &CornerMenuState,
@@ -158,33 +161,54 @@ pub fn render_corner_menu(
         return indicator;
     }
 
-    let items_el = items_column_corner(&items, state.hovered_idx, config, corner);
+    // ── Arc layout via full-screen stack ──────────────────────────────────────
+    // The indicator occupies layer 0, pinned to its corner.
+    // Each item occupies its own layer, positioned at arc coordinates.
 
-    // Top corners: indicator at top, items below.
-    // Bottom corners: items above, indicator at bottom.
-    let indicator_first = matches!(corner, Corner::TopLeft | Corner::TopRight);
+    let indicator_layer = corner_pinned(indicator, corner);
+    let mut layers: Vec<Element<'static, NavMessage>> = vec![indicator_layer];
 
-    if indicator_first {
-        Column::new()
-            .push(indicator)
-            .push(items_el)
-            .spacing(4)
-            .into()
-    } else {
-        Column::new()
-            .push(items_el)
-            .push(indicator)
-            .spacing(4)
-            .into()
+    let n = items.len();
+    let arc_radius = config.indicator_radius + config.icon_size * 2.0;
+
+    for (idx, item) in items.iter().enumerate() {
+        let sz = magnified_size(config, state.hovered_idx, idx);
+        let btn = corner_item_button(item, sz, corner);
+
+        // Distribute angles evenly from ~5° to ~85° (avoids overlapping the indicator).
+        let angle_start: f32 = 0.087; // ~5°
+        let angle_end: f32 = std::f32::consts::FRAC_PI_2 - 0.087; // ~85°
+        #[allow(clippy::cast_precision_loss)]
+        let angle = if n <= 1 {
+            f32::midpoint(angle_start, angle_end)
+        } else {
+            angle_start + (idx as f32 / (n - 1) as f32) * (angle_end - angle_start)
+        };
+
+        let ax = arc_radius * angle.cos();
+        let ay = arc_radius * angle.sin();
+
+        let layer = arc_item_layer(btn, ax, ay, corner);
+        layers.push(layer);
     }
+
+    stack(layers)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
 }
 
 // ── render_side_menu ──────────────────────────────────────────────────────────
 
 /// Render a side menu as a self-contained iced [`Element`].
 ///
-/// The half-disk indicator button is always visible.  When `state.open`,
-/// the accordion item list appears adjacent to it.
+/// Visual design:
+/// - The half-disk indicator button is always visible on the edge.
+/// - When `state.open`:
+///   - **Left / Right** edges: items appear in a **vertical Column** next to
+///     the half-disk indicator (Row layout: indicator | items or items | indicator).
+///   - **Top / Bottom** edges: items appear in a **horizontal Row** adjacent to
+///     the half-disk indicator (Column layout: indicator | items or items | indicator).
 pub fn render_side_menu(
     descriptor: &dyn SideMenuDescriptor,
     state: &SideMenuState,
@@ -198,24 +222,31 @@ pub fn render_side_menu(
         return indicator;
     }
 
-    let items_el = items_column_side(&items, state.hovered_idx, config, side);
+    let items_el = items_for_side(&items, state.hovered_idx, config, side);
 
-    // Left/Top: indicator first, items follow.
-    // Right/Bottom: items first, indicator at edge.
-    let indicator_first = matches!(side, Side::Left | Side::Top);
-
-    if indicator_first {
-        Column::new()
+    match side {
+        // Horizontal edge ↔ indicator points inward → items expand horizontally
+        Side::Left => Row::new()
             .push(indicator)
             .push(items_el)
             .spacing(4)
-            .into()
-    } else {
-        Column::new()
+            .into(),
+        Side::Right => Row::new()
             .push(items_el)
             .push(indicator)
             .spacing(4)
-            .into()
+            .into(),
+        // Vertical edge ↕ indicator points inward → items expand vertically
+        Side::Top => Column::new()
+            .push(indicator)
+            .push(items_el)
+            .spacing(4)
+            .into(),
+        Side::Bottom => Column::new()
+            .push(items_el)
+            .push(indicator)
+            .spacing(4)
+            .into(),
     }
 }
 
@@ -353,32 +384,87 @@ fn side_indicator_button(
     .into()
 }
 
-// ── Item columns ──────────────────────────────────────────────────────────────
+// ── Arc helpers ───────────────────────────────────────────────────────────────
 
-fn items_column_corner(
-    items: &[MenuItemDescriptor],
-    hovered_idx: Option<usize>,
-    config: &MenuConfig,
-    corner: Corner,
-) -> Element<'static, NavMessage> {
-    let buttons: Vec<Element<'static, NavMessage>> = items
-        .iter()
-        .enumerate()
-        .map(|(idx, item)| {
-            let h = magnified_size(config, hovered_idx, idx);
-            corner_item_button(item, h, corner)
-        })
-        .collect();
-
-    let col = Column::from_vec(buttons).spacing(2);
-    if items.len() > SCROLL_THRESHOLD {
-        scrollable(col).into()
-    } else {
-        col.into()
-    }
+/// Wrap `el` in a full-screen container pinned to `corner` with zero padding.
+///
+/// Used to position the indicator inside the open arc-menu stack.
+fn corner_pinned(el: Element<'static, NavMessage>, corner: Corner) -> Element<'static, NavMessage> {
+    let (ax, ay) = match corner {
+        Corner::TopLeft => (Alignment::Start, Alignment::Start),
+        Corner::TopRight => (Alignment::End, Alignment::Start),
+        Corner::BottomLeft => (Alignment::Start, Alignment::End),
+        Corner::BottomRight => (Alignment::End, Alignment::End),
+    };
+    container(el)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .align_x(ax)
+        .align_y(ay)
+        .padding(0)
+        .into()
 }
 
-fn items_column_side(
+/// Wrap `btn` in a full-screen container offset `(ax, ay)` from `corner`.
+///
+/// Used to place each item at its arc coordinate within the open arc-menu stack.
+fn arc_item_layer(
+    btn: Element<'static, NavMessage>,
+    ax: f32,
+    ay: f32,
+    corner: Corner,
+) -> Element<'static, NavMessage> {
+    // Padding pushes the icon away from the corner edge by (ax, ay) pixels.
+    let padding = match corner {
+        Corner::TopLeft => Padding {
+            top: ay,
+            left: ax,
+            right: 0.0,
+            bottom: 0.0,
+        },
+        Corner::TopRight => Padding {
+            top: ay,
+            right: ax,
+            left: 0.0,
+            bottom: 0.0,
+        },
+        Corner::BottomLeft => Padding {
+            bottom: ay,
+            left: ax,
+            top: 0.0,
+            right: 0.0,
+        },
+        Corner::BottomRight => Padding {
+            bottom: ay,
+            right: ax,
+            top: 0.0,
+            left: 0.0,
+        },
+    };
+
+    let (align_x, align_y) = match corner {
+        Corner::TopLeft => (Alignment::Start, Alignment::Start),
+        Corner::TopRight => (Alignment::End, Alignment::Start),
+        Corner::BottomLeft => (Alignment::Start, Alignment::End),
+        Corner::BottomRight => (Alignment::End, Alignment::End),
+    };
+
+    container(btn)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .align_x(align_x)
+        .align_y(align_y)
+        .padding(padding)
+        .into()
+}
+
+// ── Item collections ──────────────────────────────────────────────────────────
+
+/// Build the item list for a side menu with the correct orientation.
+///
+/// - `Left` / `Right` → vertical `Column` (items stacked top-to-bottom).
+/// - `Top` / `Bottom` → horizontal `Row` (items placed left-to-right).
+fn items_for_side(
     items: &[MenuItemDescriptor],
     hovered_idx: Option<usize>,
     config: &MenuConfig,
@@ -388,16 +474,28 @@ fn items_column_side(
         .iter()
         .enumerate()
         .map(|(idx, item)| {
-            let h = magnified_size(config, hovered_idx, idx);
-            side_item_button(item, h, side)
+            let sz = magnified_size(config, hovered_idx, idx);
+            side_item_button(item, sz, side)
         })
         .collect();
 
-    let col = Column::from_vec(buttons).spacing(2);
-    if items.len() > SCROLL_THRESHOLD {
-        scrollable(col).into()
-    } else {
-        col.into()
+    match side {
+        Side::Left | Side::Right => {
+            let col = Column::from_vec(buttons).spacing(2);
+            if items.len() > SCROLL_THRESHOLD {
+                scrollable(col).into()
+            } else {
+                col.into()
+            }
+        }
+        Side::Top | Side::Bottom => {
+            let row = Row::from_vec(buttons).spacing(2);
+            if items.len() > SCROLL_THRESHOLD {
+                scrollable(row).into()
+            } else {
+                row.into()
+            }
+        }
     }
 }
 
@@ -456,36 +554,82 @@ fn svg_handle_from_str(svg_str: &str, color: &str) -> svg::Handle {
     svg::Handle::from_memory(data.into_bytes())
 }
 
+// ── Double-logo icon element ──────────────────────────────────────────────────
+
+/// Render a [`CompositeIcon`] as an iced element.
+///
+/// **Double-logo strategy:**
+/// - Primary icon → full size `sz × sz`, represents *who we are* (which program).
+/// - Secondary icon → half size `(sz/2) × (sz/2)`, represents *what we are doing*
+///   (active sub-view, selected language flag, etc.).  Placed at the bottom-right
+///   corner of the primary, slightly overlapping it.
+///
+/// When no secondary is present, returns just the primary icon.
+fn composite_icon_element(
+    icon: &fs_render::navigation::CompositeIcon,
+    sz: f32,
+    primary_color: &str,
+) -> Element<'static, NavMessage> {
+    let primary_el: Element<'static, NavMessage> =
+        if let Some(svg_str) = resolve_inline_svg(&icon.primary.key) {
+            let handle = svg_handle_from_str(svg_str, primary_color);
+            svg(handle)
+                .width(Length::Fixed(sz))
+                .height(Length::Fixed(sz))
+                .into()
+        } else {
+            let short: String = icon.primary.key.chars().take(2).collect();
+            text(short).size(sz / 2.0).color(Color::WHITE).into()
+        };
+
+    let Some(sec_ref) = &icon.secondary else {
+        return primary_el;
+    };
+
+    let sec_sz = sz / 2.0;
+    let Some(sec_svg_str) = resolve_inline_svg(&sec_ref.key) else {
+        return primary_el;
+    };
+
+    // Secondary icon in cyan to visually distinguish it from the primary.
+    let sec_handle = svg_handle_from_str(sec_svg_str, "#06b6d4");
+    let sec_el: Element<'static, NavMessage> = svg(sec_handle)
+        .width(Length::Fixed(sec_sz))
+        .height(Length::Fixed(sec_sz))
+        .into();
+
+    // Position secondary at bottom-right of the primary bounding box.
+    let secondary_layer: Element<'static, NavMessage> = container(sec_el)
+        .width(Length::Fixed(sz))
+        .height(Length::Fixed(sz))
+        .align_x(Alignment::End)
+        .align_y(Alignment::End)
+        .padding(0)
+        .into();
+
+    stack(vec![primary_el, secondary_layer])
+        .width(Length::Fixed(sz))
+        .height(Length::Fixed(sz))
+        .into()
+}
+
 // ── Item buttons ──────────────────────────────────────────────────────────────
 
-/// Render a single corner-menu item as a square icon button with a tooltip.
+/// Render a single corner-menu item as an icon button with a tooltip.
 ///
-/// The button size reflects the hover-magnification effect.
-/// If the icon key resolves to an inline SVG it is shown as an SVG widget;
-/// otherwise a short text label is used as fallback.
+/// Respects the `CompositeIcon` double-logo: primary at full size, optional
+/// secondary at half size overlaid at the bottom-right.
 fn corner_item_button(
     item: &MenuItemDescriptor,
     height: f32,
     corner: Corner,
 ) -> Element<'static, NavMessage> {
-    let icon_key = item.icon.primary.key.clone();
     let label = item.label_key.clone();
     let action = item.action.clone();
     let has_sub = !item.sub_items.is_empty();
     let sz = height.max(24.0);
 
-    let icon_el: Element<'static, NavMessage> = if let Some(svg_str) = resolve_inline_svg(&icon_key)
-    {
-        let handle = svg_handle_from_str(svg_str, "#e2e8f0");
-        svg(handle)
-            .width(Length::Fixed(sz))
-            .height(Length::Fixed(sz))
-            .into()
-    } else {
-        // Fallback: first two chars of label so something is visible.
-        let short: String = label.chars().take(2).collect();
-        text(short).size(sz / 2.0).color(Color::WHITE).into()
-    };
+    let icon_el = composite_icon_element(&item.icon, sz, "#e2e8f0");
 
     let sub_badge: Element<'static, NavMessage> = if has_sub {
         text("\u{25b6}").size(8.0).color(Color::WHITE).into()
@@ -493,10 +637,12 @@ fn corner_item_button(
         Space::new().into()
     };
 
-    let btn_content: Element<'static, NavMessage> = Row::new().push(icon_el).push(sub_badge).into();
+    let btn_content: Element<'static, NavMessage> = iced::widget::row(vec![icon_el, sub_badge])
+        .spacing(0)
+        .into();
 
     let tooltip_label: Element<'static, NavMessage> =
-        iced::widget::container(text(label).size(12).color(Color::WHITE))
+        iced::widget::container(text(label.clone()).size(12).color(Color::WHITE))
             .padding([4, 8])
             .style(|_theme: &Theme| iced::widget::container::Style {
                 background: Some(Background::Color(Color::from_rgba(0.04, 0.06, 0.14, 0.92))),
@@ -528,43 +674,60 @@ fn corner_item_button(
     Tooltip::new(btn, tooltip_label, tooltip_pos).gap(4).into()
 }
 
-/// Render a single side-menu item as a transparent button.
+/// Render a single side-menu item as a transparent icon button with tooltip.
+///
+/// Square sizing so items work correctly in both vertical (Column) and
+/// horizontal (Row) layouts.
 fn side_item_button(
     item: &MenuItemDescriptor,
     height: f32,
     side: Side,
 ) -> Element<'static, NavMessage> {
-    let icon_key = item.icon.primary.key.clone();
     let label = item.label_key.clone();
     let action = item.action.clone();
     let sz = height.max(24.0);
 
-    let icon_el: Element<'static, NavMessage> = if let Some(svg_str) = resolve_inline_svg(&icon_key)
-    {
-        let handle = svg_handle_from_str(svg_str, "#e2e8f0");
-        svg(handle)
-            .width(Length::Fixed(sz))
-            .height(Length::Fixed(sz))
-            .into()
-    } else {
-        text(label).size(13.0).color(Color::WHITE).into()
+    let icon_el = composite_icon_element(&item.icon, sz, "#e2e8f0");
+
+    let tooltip_pos = match side {
+        Side::Left => iced::widget::tooltip::Position::Right,
+        Side::Right => iced::widget::tooltip::Position::Left,
+        Side::Top => iced::widget::tooltip::Position::Bottom,
+        Side::Bottom => iced::widget::tooltip::Position::Top,
     };
 
-    button(icon_el)
+    let tooltip_label: Element<'static, NavMessage> =
+        iced::widget::container(text(label.clone()).size(12).color(Color::WHITE))
+            .padding([4, 8])
+            .style(|_theme: &Theme| iced::widget::container::Style {
+                background: Some(Background::Color(Color::from_rgba(0.04, 0.06, 0.14, 0.92))),
+                border: Border {
+                    color: Color::from_rgba(0.02, 0.74, 0.84, 0.35),
+                    width: 1.0,
+                    radius: 4.0.into(),
+                },
+                ..iced::widget::container::Style::default()
+            })
+            .into();
+
+    let btn = button(icon_el)
         .on_press(NavMessage::SideMenuAction(side, action))
+        // Square button so it works in both Column and Row layouts.
+        .width(Length::Fixed(sz + 8.0))
         .height(Length::Fixed(sz + 8.0))
         .style(|_theme: &Theme, _status| iced::widget::button::Style {
             background: None,
             text_color: Color::WHITE,
             ..iced::widget::button::Style::default()
         })
-        .padding([2, 4])
-        .into()
+        .padding([2, 4]);
+
+    Tooltip::new(btn, tooltip_label, tooltip_pos).gap(4).into()
 }
 
 // ── Hover magnification ───────────────────────────────────────────────────────
 
-/// Compute the item height for index `idx` given the hovered item's index.
+/// Compute the item size for index `idx` given the hovered item's index.
 ///
 /// Uses the same exponential falloff as [`HoverMagnification::size_at_distance`]:
 /// items nearer the cursor grow toward `max_icon_size`, items farther away
@@ -593,6 +756,19 @@ mod tests {
         MenuItemDescriptor::new(
             id,
             CompositeIcon::single(IconRef::new("fs:nav/test")),
+            format!("nav-{id}"),
+            format!("open:{id}"),
+        )
+    }
+
+    fn make_item_with_secondary(id: &str, secondary_key: &str) -> MenuItemDescriptor {
+        MenuItemDescriptor::new(
+            id,
+            CompositeIcon::with_instance(
+                IconRef::new(format!("fs:nav/{id}")),
+                IconRef::new(secondary_key.to_string()),
+                0.3,
+            ),
             format!("nav-{id}"),
             format!("open:{id}"),
         )
@@ -787,7 +963,8 @@ mod tests {
     }
 
     #[test]
-    fn corner_menu_scroll_fallback_beyond_threshold() {
+    fn corner_menu_many_items_renders_arc_without_panic() {
+        // Items beyond SCROLL_THRESHOLD still render correctly on the arc.
         let items: Vec<_> = (0..12).map(|i| make_item(&i.to_string())).collect();
         let desc = TestCornerMenu {
             corner: Corner::TopRight,
@@ -860,6 +1037,22 @@ mod tests {
     }
 
     #[test]
+    fn side_menu_top_bottom_renders_horizontal() {
+        // Top and Bottom menus should render without panic (horizontal Row layout).
+        for side in [Side::Top, Side::Bottom] {
+            let desc = TestSideMenu {
+                side,
+                items: vec![make_item("a"), make_item("b"), make_item("c")],
+            };
+            let state = SideMenuState {
+                open: true,
+                hovered_idx: None,
+            };
+            let _el = render_side_menu(&desc, &state, &MenuConfig::default());
+        }
+    }
+
+    #[test]
     fn side_menu_scroll_fallback_beyond_threshold() {
         let items: Vec<_> = (0..10).map(|i| make_item(&i.to_string())).collect();
         let desc = TestSideMenu {
@@ -886,5 +1079,35 @@ mod tests {
             };
             let _el = render_side_menu(&desc, &state, &MenuConfig::default());
         }
+    }
+
+    // ── Double logo (CompositeIcon) ───────────────────────────────────────────
+
+    #[test]
+    fn corner_menu_with_secondary_icon_renders_without_panic() {
+        let item = make_item_with_secondary("settings", "fs:nav/language");
+        let desc = TestCornerMenu {
+            corner: Corner::BottomLeft,
+            items: vec![item],
+        };
+        let state = CornerMenuState {
+            open: true,
+            hovered_idx: Some(0),
+        };
+        let _el = render_corner_menu(&desc, &state, &MenuConfig::default());
+    }
+
+    #[test]
+    fn side_menu_with_secondary_icon_renders_without_panic() {
+        let item = make_item_with_secondary("settings", "fs:nav/desktop");
+        let desc = TestSideMenu {
+            side: Side::Left,
+            items: vec![item],
+        };
+        let state = SideMenuState {
+            open: true,
+            hovered_idx: Some(0),
+        };
+        let _el = render_side_menu(&desc, &state, &MenuConfig::default());
     }
 }
