@@ -22,7 +22,9 @@ use fs_render::navigation::{
     Corner, CornerMenuDescriptor, MenuItemDescriptor, Side, SideMenuDescriptor,
 };
 use iced::border::Radius;
-use iced::widget::{button, container, scrollable, stack, svg, text, Column, Row, Space, Tooltip};
+use iced::widget::{
+    button, container, mouse_area, scrollable, stack, svg, text, Column, Row, Space, Tooltip,
+};
 use iced::{Alignment, Background, Border, Color, Element, Length, Padding, Theme};
 
 /// Number of items before the scroll fallback activates (side menus only).
@@ -84,8 +86,12 @@ pub struct SideMenuState {
 /// Messages emitted by corner and side menu widgets.
 #[derive(Debug, Clone)]
 pub enum NavMessage {
-    /// Toggle a corner menu open/closed.
+    /// Toggle a corner menu open/closed (click).
     CornerMenuToggle(Corner),
+    /// Open a corner menu (hover enter).
+    CornerMenuOpen(Corner),
+    /// Close a corner menu (hover exit).
+    CornerMenuClose(Corner),
     /// Pointer entered an item at the given index.
     CornerMenuItemEntered(Corner, usize),
     /// Pointer left all items in a corner menu.
@@ -112,6 +118,13 @@ pub fn update_corner_menu(state: &mut CornerMenuState, corner: Corner, msg: &Nav
     match msg {
         NavMessage::CornerMenuToggle(c) if *c == corner => {
             state.open = !state.open;
+        }
+        NavMessage::CornerMenuOpen(c) if *c == corner => {
+            state.open = true;
+        }
+        NavMessage::CornerMenuClose(c) if *c == corner => {
+            state.open = false;
+            state.hovered_idx = None;
         }
         NavMessage::CornerMenuItemEntered(c, idx) if *c == corner => {
             state.hovered_idx = Some(*idx);
@@ -173,7 +186,7 @@ pub fn render_corner_menu(
 
     for (idx, item) in items.iter().enumerate() {
         let sz = magnified_size(config, state.hovered_idx, idx);
-        let btn = corner_item_button(item, sz, corner);
+        let btn = corner_item_button(item, sz, corner, idx);
 
         // Distribute angles evenly from ~5° to ~85° (avoids overlapping the indicator).
         let angle_start: f32 = 0.087; // ~5°
@@ -297,22 +310,41 @@ fn corner_indicator_button(
         },
     };
 
-    button(
+    // The quarter-disk indicator: click toggles, hover opens.
+    // We wrap in a slightly larger mouse_area so the hover zone is easier to hit.
+    let indicator_size = r + 8.0; // larger hover target
+    let btn = button(
         Space::new()
             .width(Length::Fixed(r))
             .height(Length::Fixed(r)),
     )
     .on_press(NavMessage::CornerMenuToggle(corner))
-    .style(move |_theme: &Theme, _status| iced::widget::button::Style {
-        background: Some(Background::Color(color)),
-        border: Border {
-            radius,
-            ..Border::default()
-        },
-        text_color: Color::TRANSPARENT,
-        ..iced::widget::button::Style::default()
+    .style(move |_theme: &Theme, status| {
+        let glow = matches!(status, iced::widget::button::Status::Hovered);
+        let glow_color = if glow {
+            Color { a: 1.0, ..accent }
+        } else {
+            color
+        };
+        iced::widget::button::Style {
+            background: Some(Background::Color(glow_color)),
+            border: Border {
+                radius,
+                ..Border::default()
+            },
+            text_color: Color::TRANSPARENT,
+            ..iced::widget::button::Style::default()
+        }
     })
-    .padding(0)
+    .padding(0);
+
+    mouse_area(
+        container(btn)
+            .width(Length::Fixed(indicator_size))
+            .height(Length::Fixed(indicator_size)),
+    )
+    .on_enter(NavMessage::CornerMenuOpen(corner))
+    .on_exit(NavMessage::CornerMenuClose(corner))
     .into()
 }
 
@@ -619,27 +651,43 @@ fn composite_icon_element(
 ///
 /// Respects the `CompositeIcon` double-logo: primary at full size, optional
 /// secondary at half size overlaid at the bottom-right.
+/// Render a single corner-menu item: icon with circular background + hover magnification.
+///
+/// The circle background ensures the icon is always visible regardless of the
+/// wallpaper or desktop content behind it.
+/// `mouse_area` wraps the button to fire [`NavMessage::CornerMenuItemEntered`] /
+/// [`NavMessage::CornerMenuItemLeft`] for Apple-style magnification.
 fn corner_item_button(
     item: &MenuItemDescriptor,
     height: f32,
     corner: Corner,
+    idx: usize,
 ) -> Element<'static, NavMessage> {
     let label = item.label_key.clone();
     let action = item.action.clone();
-    let has_sub = !item.sub_items.is_empty();
     let sz = height.max(24.0);
+    let total = sz + 12.0; // button bounding box (circle diameter + padding)
 
     let icon_el = composite_icon_element(&item.icon, sz, "#e2e8f0");
 
-    let sub_badge: Element<'static, NavMessage> = if has_sub {
-        text("\u{25b6}").size(8.0).color(Color::WHITE).into()
-    } else {
-        Space::new().into()
-    };
-
-    let btn_content: Element<'static, NavMessage> = iced::widget::row(vec![icon_el, sub_badge])
-        .spacing(0)
-        .into();
+    // ── Circular background ───────────────────────────────────────────────────
+    // Semi-transparent dark circle so icons are legible on any wallpaper.
+    let circle_bg = container(icon_el)
+        .width(Length::Fixed(total))
+        .height(Length::Fixed(total))
+        .center_x(total)
+        .center_y(total)
+        .style(move |_theme: &Theme| iced::widget::container::Style {
+            background: Some(Background::Color(Color::from_rgba(
+                0.06, 0.09, 0.20, 0.82,
+            ))),
+            border: Border {
+                color: Color::from_rgba(0.02, 0.74, 0.84, 0.50),
+                width: 1.5,
+                radius: (total / 2.0).into(),
+            },
+            ..iced::widget::container::Style::default()
+        });
 
     let tooltip_label: Element<'static, NavMessage> =
         iced::widget::container(text(label.clone()).size(12).color(Color::WHITE))
@@ -660,18 +708,35 @@ fn corner_item_button(
         Corner::TopRight | Corner::BottomRight => iced::widget::tooltip::Position::Left,
     };
 
-    let btn = button(btn_content)
+    let btn = button(circle_bg)
         .on_press(NavMessage::CornerMenuAction(corner, action))
-        .width(Length::Fixed(sz + 8.0))
-        .height(Length::Fixed(sz + 8.0))
-        .style(|_theme: &Theme, _status| iced::widget::button::Style {
-            background: None,
-            text_color: Color::WHITE,
-            ..iced::widget::button::Style::default()
+        .width(Length::Fixed(total))
+        .height(Length::Fixed(total))
+        .style(move |_theme: &Theme, status| {
+            let hovered = matches!(status, iced::widget::button::Status::Hovered);
+            iced::widget::button::Style {
+                background: if hovered {
+                    Some(Background::Color(Color::from_rgba(0.02, 0.74, 0.84, 0.15)))
+                } else {
+                    None
+                },
+                border: Border {
+                    radius: (total / 2.0).into(),
+                    ..Border::default()
+                },
+                text_color: Color::WHITE,
+                ..iced::widget::button::Style::default()
+            }
         })
-        .padding(4);
+        .padding(0);
 
-    Tooltip::new(btn, tooltip_label, tooltip_pos).gap(4).into()
+    let with_tooltip = Tooltip::new(btn, tooltip_label, tooltip_pos).gap(4);
+
+    // mouse_area fires magnification events (hover enter/exit per item index).
+    mouse_area(with_tooltip)
+        .on_enter(NavMessage::CornerMenuItemEntered(corner, idx))
+        .on_exit(NavMessage::CornerMenuItemLeft(corner))
+        .into()
 }
 
 /// Render a single side-menu item as a transparent icon button with tooltip.
