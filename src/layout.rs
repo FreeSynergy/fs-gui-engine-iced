@@ -5,10 +5,14 @@
 //   All string content is cloned into owned data so the resulting `Element`
 //   has `'static` lifetime and can be returned from any context.
 //
-// Animations (iced 0.13 + iced_aw):
+// Animations (iced 0.14 + iced_aw):
 //   - Spinner (iced_aw): animated loading indicator for unregistered components
 //   - Badge   (iced_aw): pill/count badges in notification and status displays
 //   - Card    (iced_aw): styled panel with header/body for each component
+//
+// Icon lookup (feature = "icon-lookup"):
+//   - freedesktop-icons resolves icon names via the system icon theme
+//   - Falls back to hardcoded FS-local paths, then emoji when all else fails
 
 use fs_render::{
     ButtonStyle, ComponentCtx, ComponentRegistry, LayoutDescriptor, LayoutElement, LayoutError,
@@ -312,27 +316,43 @@ fn text_size_px(size: &TextSize) -> u16 {
 
 /// Render an icon by name.
 ///
-/// Tries to load an SVG from the data directory first.  Falls back to a
-/// single-character emoji text widget when no SVG file is found.
+/// Resolution order:
+/// 1. System icon theme via `freedesktop-icons` (feature `icon-lookup`) —
+///    honours the user's current GTK/Qt icon theme.
+/// 2. FreeSynergy-local SVG paths (`~/.local/share/freesynergy/icons`, …).
+/// 3. Short emoji fallback so something is always visible.
 fn render_icon(name: &str, size: u32) -> Element<'static, LayoutMessage> {
-    // SVG search paths (icon-set artifacts are installed into these directories).
-    let candidates = icon_svg_paths(name);
-    for path in candidates {
+    #[allow(clippy::cast_precision_loss)]
+    let px = size as f32;
+
+    // 1. System icon theme (only when feature is enabled).
+    #[cfg(feature = "icon-lookup")]
+    if let Some(path) = freedesktop_icons::lookup(name)
+        .with_size(u16::try_from(size).unwrap_or(32))
+        .with_cache()
+        .find()
+    {
+        return iced::widget::svg(iced::widget::svg::Handle::from_path(path))
+            .width(Length::Fixed(px))
+            .height(Length::Fixed(px))
+            .into();
+    }
+
+    // 2. FreeSynergy-local SVG paths.
+    for path in icon_svg_paths(name) {
         if path.exists() {
-            #[allow(clippy::cast_precision_loss)]
-            let px = size as f32;
             return iced::widget::svg(iced::widget::svg::Handle::from_path(path))
                 .width(Length::Fixed(px))
                 .height(Length::Fixed(px))
                 .into();
         }
     }
-    // Fallback: render the name as a small bracketed text icon.
-    #[allow(clippy::cast_precision_loss)]
-    text(icon_emoji_fallback(name)).size(size as f32).into()
+
+    // 3. Emoji fallback.
+    text(icon_emoji_fallback(name)).size(px).into()
 }
 
-/// Candidate SVG paths for a given icon name.
+/// Candidate FreeSynergy-local SVG paths for a given icon name.
 fn icon_svg_paths(name: &str) -> Vec<std::path::PathBuf> {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
     let base_name = format!("{name}.svg");
