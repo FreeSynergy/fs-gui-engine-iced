@@ -100,8 +100,8 @@ impl LayerWindowConfig {
     /// Sets `exclusive_zone = thickness` so the compositor reserves space.
     pub fn panel(edge: ScreenEdge, thickness: u32) -> Self {
         let (w, h) = match edge {
-            ScreenEdge::Top | ScreenEdge::Bottom => (0, thickness),  // 0 → full width
-            ScreenEdge::Left | ScreenEdge::Right => (thickness, 0),  // 0 → full height
+            ScreenEdge::Top | ScreenEdge::Bottom => (0, thickness), // 0 → full width
+            ScreenEdge::Left | ScreenEdge::Right => (thickness, 0), // 0 → full height
         };
         Self {
             anchor: edge.anchor(),
@@ -216,7 +216,10 @@ mod tests {
     fn fullscreen_overlay_keyboard_exclusive() {
         let cfg = LayerWindowConfig::fullscreen_overlay();
         let settings = cfg.into_shell_settings();
-        assert_eq!(settings.keyboard_interactivity, KeyboardInteractivity::Exclusive);
+        assert_eq!(
+            settings.keyboard_interactivity,
+            KeyboardInteractivity::Exclusive
+        );
         assert_eq!(settings.exclusive_zone, -1);
     }
 }

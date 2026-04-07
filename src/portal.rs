@@ -89,10 +89,7 @@ pub async fn open_files(title: &str) -> Result<OpenFileResult, ashpd::Error> {
 ///
 /// # Errors
 /// Returns `ashpd::Error` on D-Bus communication failure.
-pub async fn save_file(
-    title: &str,
-    current_name: &str,
-) -> Result<Option<PathBuf>, ashpd::Error> {
+pub async fn save_file(title: &str, current_name: &str) -> Result<Option<PathBuf>, ashpd::Error> {
     let proxy = FileChooserProxy::new().await?;
     let opts = SaveFileOptions::default().set_current_name(current_name);
     let request = proxy.save_file(None, title, opts).await?;
@@ -146,16 +143,14 @@ impl From<NotificationLevel> for Priority {
 ///
 /// # Errors
 /// Returns `ashpd::Error` on D-Bus failure.
-pub async fn notify(
-    title: &str,
-    body: &str,
-    level: NotificationLevel,
-) -> Result<(), ashpd::Error> {
+pub async fn notify(title: &str, body: &str, level: NotificationLevel) -> Result<(), ashpd::Error> {
     let proxy = NotificationProxy::new().await?;
     let notification = Notification::new(title)
         .body(body)
         .priority(Some(Priority::from(level)));
-    proxy.add_notification("fs-notification", notification).await
+    proxy
+        .add_notification("fs-notification", notification)
+        .await
 }
 
 /// Send a notification with a single action button.
@@ -177,5 +172,7 @@ pub async fn notify_with_action(
         .priority(Some(Priority::from(level)))
         .button(button)
         .default_action(action_key);
-    proxy.add_notification("fs-notification", notification).await
+    proxy
+        .add_notification("fs-notification", notification)
+        .await
 }

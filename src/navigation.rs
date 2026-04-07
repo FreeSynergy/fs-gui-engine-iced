@@ -239,16 +239,8 @@ pub fn render_side_menu(
 
     match side {
         // Horizontal edge ↔ indicator points inward → items expand horizontally
-        Side::Left => Row::new()
-            .push(indicator)
-            .push(items_el)
-            .spacing(4)
-            .into(),
-        Side::Right => Row::new()
-            .push(items_el)
-            .push(indicator)
-            .spacing(4)
-            .into(),
+        Side::Left => Row::new().push(indicator).push(items_el).spacing(4).into(),
+        Side::Right => Row::new().push(items_el).push(indicator).spacing(4).into(),
         // Vertical edge ↕ indicator points inward → items expand vertically
         Side::Top => Column::new()
             .push(indicator)
@@ -678,9 +670,7 @@ fn corner_item_button(
         .center_x(total)
         .center_y(total)
         .style(move |_theme: &Theme| iced::widget::container::Style {
-            background: Some(Background::Color(Color::from_rgba(
-                0.06, 0.09, 0.20, 0.82,
-            ))),
+            background: Some(Background::Color(Color::from_rgba(0.06, 0.09, 0.20, 0.82))),
             border: Border {
                 color: Color::from_rgba(0.02, 0.74, 0.84, 0.50),
                 width: 1.5,
