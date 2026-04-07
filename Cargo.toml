@@ -17,7 +17,7 @@ iced_aw   = { version = "0.13", default-features = false, features = ["badge", "
 # Wayland Layer Shell — panels, docks, overlays (Corner/Side menus)
 iced_layershell  = { version = "0.17", optional = true }
 # XDG Portals — file picker, notifications, screenshots (desktop-agnostic)
-ashpd            = { version = "0.13", optional = true }
+ashpd            = { version = "0.13", optional = true, features = ["file_chooser", "notification"] }
 # Color math — theme interpolation, dark/light transitions, Oklch
 palette          = { version = "0.7", optional = true }
 # Freedesktop icon-theme lookup — resolves icon names to paths

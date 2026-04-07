@@ -2,7 +2,7 @@
 #![deny(warnings)]
 #![allow(clippy::missing_errors_doc)]
 #![allow(clippy::must_use_candidate)]
-// fs-gui-engine-iced — iced / libcosmic render engine for FreeSynergy.
+// fs-gui-engine-iced — iced render engine for FreeSynergy.
 //
 // Implements all `fs-render` traits:
 //   - `RenderEngine`  — IcedEngine
@@ -13,10 +13,12 @@
 // Application code imports `fs-render` only — never this crate directly.
 // Engine selection happens via Cargo feature flags in fs-desktop / fs-browser.
 //
-// # libcosmic
-// The current build uses vanilla `iced 0.13`.  A full libcosmic integration
-// (Pop!_OS COSMIC design system, system palette, portal integration) will be
-// added once the desktop shell reaches the G2.8 phase.
+// # Optional features
+//   - `wayland`     — layer.rs:  Wayland Layer Shell (panels, docks, overlays)
+//   - `portals`     — portal.rs: XDG Portals (file picker, notifications)
+//   - `theme-ext`   — theme.rs:  Oklch custom theme generation via `palette`
+//   - `icon-lookup` — layout.rs: freedesktop icon-theme lookup
+//   - `desktop`     — all four features combined
 //
 // # Re-exported iced
 // `pub use iced` lets downstream crates (fs-browser, fs-desktop shell)
@@ -26,8 +28,10 @@ pub mod capability;
 pub mod engine;
 pub mod keys;
 pub mod layout;
+pub mod layer;
 pub mod mvu;
 pub mod navigation;
+pub mod portal;
 pub mod theme;
 pub mod widget;
 pub mod window;
@@ -42,6 +46,12 @@ pub use navigation::{
 pub use theme::IcedTheme;
 pub use widget::IcedWidget;
 pub use window::IcedWindow;
+
+// Feature-gated re-exports so downstream crates get clean access.
+#[cfg(feature = "wayland")]
+pub use layer::{LayerWindowConfig, ScreenCorner, ScreenEdge};
+#[cfg(feature = "portals")]
+pub use portal::{notify, open_file, open_files, save_file, NotificationLevel};
 
 /// Re-export `iced` so downstream crates need not depend on it directly.
 pub use iced;

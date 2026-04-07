@@ -79,14 +79,15 @@ impl IcedTheme {
                 primary: iced::Color::from_rgb(r, g, b),
                 success: iced::Color::from_rgb(
                     surf_srgb.red,
-                    surf_srgb.green + 0.15,
+                    (surf_srgb.green + 0.15).min(1.0),
                     surf_srgb.blue,
                 ),
+                warning: iced::Color::from_rgb(0.95, 0.75, 0.10),
                 danger: iced::Color::from_rgb(0.85, 0.20, 0.20),
             };
 
             return Self {
-                inner: Theme::custom("fs-custom".into(), palette),
+                inner: Theme::custom("fs-custom", palette),
                 primary: Some(Color::rgb(r, g, b)),
             };
         }

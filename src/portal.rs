@@ -1,8 +1,8 @@
 // portal.rs — XDG Portal wrappers for FreeSynergy desktop integration.
 //
 // Design Pattern: Facade
-//   Wraps ashpd's async portal API into simple, fire-and-forget functions
-//   that consumer crates call from iced `Task::perform` closures.
+//   Wraps ashpd's async portal API into simple functions that consumer crates
+//   call from iced `Task::perform` closures.
 //   Consumer code never imports ashpd directly.
 //
 // Feature gate: only compiled when feature = "portals" is active.
@@ -10,9 +10,8 @@
 
 #![cfg(feature = "portals")]
 
-use ashpd::desktop::file_chooser::{FileChooserProxy, OpenFileRequest, SaveFileRequest};
-use ashpd::desktop::notification::{Action, Button, Notification, NotificationProxy, Priority};
-use ashpd::WindowIdentifier;
+use ashpd::desktop::file_chooser::{FileChooserProxy, OpenFileOptions, SaveFileOptions};
+use ashpd::desktop::notification::{Notification, NotificationProxy, Priority};
 use std::path::PathBuf;
 
 // ── File Picker ───────────────────────────────────────────────────────────────
@@ -41,17 +40,23 @@ pub struct OpenFileResult {
 /// Returns `ashpd::Error` on D-Bus communication failure.
 pub async fn open_file(title: &str) -> Result<OpenFileResult, ashpd::Error> {
     let proxy = FileChooserProxy::new().await?;
-    let response = OpenFileRequest::default()
-        .title(title)
-        .send(&proxy)
-        .await?
-        .response()?;
+    let request = proxy
+        .open_file(None, title, OpenFileOptions::default())
+        .await?;
+    let response = request.response();
 
-    let paths = response
-        .uris()
-        .iter()
-        .filter_map(|u| u.to_file_path().ok())
-        .collect();
+    let paths = match response {
+        Ok(r) => r
+            .uris()
+            .iter()
+            .filter_map(|u| {
+                let s = u.as_str();
+                // Strip "file://" prefix to get a local path.
+                s.strip_prefix("file://").map(PathBuf::from)
+            })
+            .collect(),
+        Err(_) => vec![], // user cancelled
+    };
 
     Ok(OpenFileResult { paths })
 }
@@ -62,18 +67,18 @@ pub async fn open_file(title: &str) -> Result<OpenFileResult, ashpd::Error> {
 /// Returns `ashpd::Error` on D-Bus communication failure.
 pub async fn open_files(title: &str) -> Result<OpenFileResult, ashpd::Error> {
     let proxy = FileChooserProxy::new().await?;
-    let response = OpenFileRequest::default()
-        .title(title)
-        .multiple(true)
-        .send(&proxy)
-        .await?
-        .response()?;
+    let opts = OpenFileOptions::default().set_multiple(true);
+    let request = proxy.open_file(None, title, opts).await?;
+    let response = request.response();
 
-    let paths = response
-        .uris()
-        .iter()
-        .filter_map(|u| u.to_file_path().ok())
-        .collect();
+    let paths = match response {
+        Ok(r) => r
+            .uris()
+            .iter()
+            .filter_map(|u| u.as_str().strip_prefix("file://").map(PathBuf::from))
+            .collect(),
+        Err(_) => vec![],
+    };
 
     Ok(OpenFileResult { paths })
 }
@@ -89,17 +94,19 @@ pub async fn save_file(
     current_name: &str,
 ) -> Result<Option<PathBuf>, ashpd::Error> {
     let proxy = FileChooserProxy::new().await?;
-    let response = SaveFileRequest::default()
-        .title(title)
-        .current_name(current_name)
-        .send(&proxy)
-        .await?
-        .response();
+    let opts = SaveFileOptions::default().set_current_name(current_name);
+    let request = proxy.save_file(None, title, opts).await?;
+    let response = request.response();
 
-    match response {
-        Ok(r) => Ok(r.uris().first().and_then(|u| u.to_file_path().ok())),
-        Err(_) => Ok(None), // user cancelled
-    }
+    let path = match response {
+        Ok(r) => r
+            .uris()
+            .first()
+            .and_then(|u| u.as_str().strip_prefix("file://").map(PathBuf::from)),
+        Err(_) => None, // user cancelled
+    };
+
+    Ok(path)
 }
 
 // ── Notifications ─────────────────────────────────────────────────────────────
@@ -147,7 +154,7 @@ pub async fn notify(
     let proxy = NotificationProxy::new().await?;
     let notification = Notification::new(title)
         .body(body)
-        .priority(level.into());
+        .priority(Some(Priority::from(level)));
     proxy.add_notification("fs-notification", notification).await
 }
 
@@ -162,24 +169,13 @@ pub async fn notify_with_action(
     action_label: &str,
     action_key: &str,
 ) -> Result<(), ashpd::Error> {
+    use ashpd::desktop::notification::Button;
     let proxy = NotificationProxy::new().await?;
-    let button = Button::new(action_key, action_label);
-    let action = Action::new(action_key, action_label);
+    let button = Button::new(action_label, action_key);
     let notification = Notification::new(title)
         .body(body)
-        .priority(level.into())
+        .priority(Some(Priority::from(level)))
         .button(button)
         .default_action(action_key);
-    let _ = action; // kept for documentation clarity
     proxy.add_notification("fs-notification", notification).await
-}
-
-// ── Window identifier helper ──────────────────────────────────────────────────
-
-/// Create a wayland window identifier from a surface handle, if available.
-///
-/// Returns `WindowIdentifier::default()` when no surface handle is available
-/// (e.g. in headless / test mode).
-pub fn window_identifier() -> WindowIdentifier {
-    WindowIdentifier::default()
 }
